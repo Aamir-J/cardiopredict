@@ -44,7 +44,7 @@ ENV/
 *.ipynb_checkpoints
 
 # --- Data outputs (generated, not source) ---
-data/heart.db
+# data/heart.db
 data/heart.db-journal
 data/processed/*.csv
 data/processed/*.parquet
