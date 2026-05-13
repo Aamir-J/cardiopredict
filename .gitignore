@@ -1,0 +1,65 @@
+# --- Secrets ---
+.env
+.env.local
+*.key
+kaggle.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- Virtual environments ---
+venv/
+env/
+ENV/
+.venv/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# --- Data outputs (generated, not source) ---
+data/heart.db
+data/heart.db-journal
+data/processed/*.csv
+data/processed/*.parquet
+
+# --- Streamlit ---
+.streamlit/secrets.toml
+
+# --- SHAP plots cache ---
+shap_cache/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- OS ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
