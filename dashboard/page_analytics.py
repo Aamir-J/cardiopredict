@@ -8,24 +8,22 @@ Provides a population-level view of the training data:
   - Age and risk distribution by cohort
   - Feature comparison: how do Indian patients differ from Western ones?
   - Global SHAP feature importance (the plots from src/explain.py)
+  - DataExplorer chatbot — natural-language SQL queries against the dataset
 
-This page serves two audiences:
-  - The mentor / examiner who wants to verify the data is real and the
-    comparative-analysis claim of the title is supported.
-  - A clinical user who wants to understand the population the model was
-    trained on, to judge whether predictions for their patient are likely
-    to be reliable.
+The DataExplorer chatbot at the bottom lets users explore the dataset
+conversationally. Powered by Claude with tool use — the LLM generates SQL,
+runs it safely against a read-only DB connection, and returns answers
+with real numbers.
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from dashboard.chatbot_sql import render_sql_chatbot, reset_sql_chat
 from src.db import PROJECT_ROOT, Tables, get_engine
 
 
@@ -263,9 +261,32 @@ def render() -> None:
     st.divider()
 
     # -----------------------------------------------------------------------
-    # Section 6: Dataset audit note (important for viva defence)
+    # Section 6: DataExplorer chatbot — natural-language data exploration
     # -----------------------------------------------------------------------
-    with st.expander("ℹ️ A note on dataset selection and exclusion", expanded=False):
+    st.subheader("💬 Ask DataExplorer")
+    st.write(
+        "Ask questions about the dataset in plain English. DataExplorer "
+        "translates your question into a SQL query, runs it against the "
+        "database, and explains the result with the actual numbers. "
+        "Powered by Claude with safe read-only database access."
+    )
+
+    col_a, col_b = st.columns([5, 1])
+    with col_b:
+        if st.button("🔄 Reset chat", key="reset_page2_chat",
+                     help="Clear the conversation"):
+            reset_sql_chat()
+            st.rerun()
+
+    render_sql_chatbot()
+
+    st.divider()
+
+    # -----------------------------------------------------------------------
+    # Section 7: Dataset audit note (important for viva defence)
+    # -----------------------------------------------------------------------
+    with st.expander("ℹ️ A note on dataset selection and exclusion",
+                     expanded=False):
         st.markdown(
             """
             **Datasets used:**
