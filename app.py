@@ -25,7 +25,7 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="CardioPredict",
-    page_icon="❤️",
+    page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -35,9 +35,9 @@ st.set_page_config(
 # Sidebar — branding + navigation
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.title("❤️ CardioPredict")
+    st.title("🫀 CardioPredict")
     st.caption("AI-Powered Heart Disease Risk Detection")
-    st.caption("for Indian Patients")
+    # st.caption("for Indian Patients")
     st.divider()
 
     page = st.radio(
