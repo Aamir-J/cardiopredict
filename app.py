@@ -1,47 +1,54 @@
 """
 app.py
 ------
-CardioPredict — Streamlit dashboard entry point.
+CardioPredict — Streamlit application entry point.
 
-This is the main file Streamlit runs to launch the dashboard.
-It handles:
-  - Page configuration (title, icon, layout)
-  - Sidebar navigation between the four dashboard pages
-  - Routing to the appropriate page module
+This module is the entrypoint Streamlit Cloud runs. It configures the page,
+sets up the sidebar navigation, and dispatches to the correct page module
+based on the selected option.
 
-Each page lives in its own file under dashboard/, so the routing logic
-here stays simple and the pages stay independently testable.
-
-Run with:
-    streamlit run app.py
+The four pages are implemented separately in dashboard/page_*.py modules
+and exposed via a render() function each. Keeping app.py thin lets us add
+or remove pages without touching the routing logic.
 """
 
 from __future__ import annotations
 
 import streamlit as st
 
-# ---------------------------------------------------------------------------
-# Page configuration — must be the first Streamlit command
-# ---------------------------------------------------------------------------
-st.set_page_config(
-    page_title="CardioPredict",
-    page_icon="🏥",
-    layout="wide",
-    initial_sidebar_state="expanded",
+from dashboard import (
+    page_analytics,
+    page_metrics,
+    page_risk_calculator,
+    page_roi,
 )
 
 
 # ---------------------------------------------------------------------------
-# Sidebar — branding + navigation
+# Page configuration
+# ---------------------------------------------------------------------------
+# initial_sidebar_state="collapsed" gives a cleaner first impression on
+# mobile (no hamburger menu obscuring the content). Desktop users see a
+# small toggle to open the sidebar; mobile users tap the hamburger icon.
+st.set_page_config(
+    page_title="CardioPredict",
+    page_icon="🩺",
+    layout="centered",
+    initial_sidebar_state="collapsed",
+)
+
+
+# ---------------------------------------------------------------------------
+# Sidebar — title, navigation, disclaimer
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.title("🫀 CardioPredict")
+    st.markdown("# 🩺 CardioPredict")
     st.caption("AI-Powered Heart Disease Risk Detection")
-    # st.caption("for Indian Patients")
+    st.caption("for Indian Patients")
     st.divider()
 
-    page = st.radio(
-        "Navigate",
+    page_choice = st.radio(
+        "Navigation",
         options=[
             "🩺 Risk Calculator",
             "📊 Analytics & Insights",
@@ -53,27 +60,19 @@ with st.sidebar:
 
     st.divider()
     st.caption(
-        "⚠️ **Decision-support prototype.** "
-        "This tool supports clinical reasoning. "
-        "It does not replace medical judgement."
+        "⚠️ **Decision-support prototype.** This tool supports "
+        "clinical reasoning. It does not replace medical judgement."
     )
 
 
 # ---------------------------------------------------------------------------
-# Page routing — call the appropriate render function based on selection
+# Dispatch to the correct page
 # ---------------------------------------------------------------------------
-if page == "🩺 Risk Calculator":
-    from dashboard.page_risk_calculator import render
-    render()
-
-elif page == "📊 Analytics & Insights":
-    from dashboard.page_analytics import render
-    render()
-
-elif page == "💰 ROI Calculator":
-    from dashboard.page_roi import render
-    render()
-
-elif page == "📈 Model Performance":
-    from dashboard.page_metrics import render
-    render()
+if page_choice == "🩺 Risk Calculator":
+    page_risk_calculator.render()
+elif page_choice == "📊 Analytics & Insights":
+    page_analytics.render()
+elif page_choice == "💰 ROI Calculator":
+    page_roi.render()
+elif page_choice == "📈 Model Performance":
+    page_metrics.render()

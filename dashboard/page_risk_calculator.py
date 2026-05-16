@@ -11,6 +11,15 @@ The prediction and patient inputs are stored in st.session_state so they
 survive Streamlit reruns. This is what allows the chatbot at the bottom of
 the page to keep functioning after the user types — without it, each chat
 turn would wipe out the prediction display.
+
+The plain-English summary section deliberately uses generic descriptors
+("the patient's electrocardiographic findings", "their resting cardiovascular
+profile") rather than reading SHAP feature names verbatim. The reason: SHAP
+operates on one-hot encoded columns, so 'ST Slope Category 1' may appear
+in the chart with a non-zero contribution even when the patient selected
+Slope 2 — the model is using the absence of that category as a signal.
+Showing the raw feature names in the summary creates a contradiction
+between what the user selected and what the summary "says drove" the result.
 """
 
 from __future__ import annotations
@@ -117,6 +126,74 @@ def _shap_waterfall(top_drivers, top_protectors, base_value, probability,
     return fig
 
 
+# ---------------------------------------------------------------------------
+# Helpers for the plain-English summary
+# ---------------------------------------------------------------------------
+def _theme_for_feature(feature_name: str) -> str:
+    """
+    Group a SHAP feature into a human-readable clinical theme. We use these
+    themes in the plain-English summary instead of raw feature names — this
+    prevents the confusion of seeing 'Slope Category 1 (no)' described as
+    a driving factor when the patient actually selected Slope 2.
+    """
+    if feature_name.startswith("slope_"):
+        return "the patient's exercise ECG findings"
+    if feature_name.startswith("chest_pain_type_"):
+        return "the chest pain pattern"
+    if feature_name.startswith("resting_ecg_"):
+        return "resting ECG findings"
+    if feature_name.startswith("age_group_") or feature_name == "age":
+        return "patient age"
+    if feature_name.startswith("bp_category_") or feature_name == "resting_bp":
+        return "blood pressure"
+    if feature_name.startswith("cholesterol_band_") or feature_name == "cholesterol":
+        return "cholesterol level"
+    if feature_name == "num_vessels":
+        return "number of diseased vessels on imaging"
+    if feature_name == "oldpeak":
+        return "ST segment depression on stress testing"
+    if feature_name == "max_heart_rate":
+        return "exercise tolerance (peak heart rate)"
+    if feature_name == "exercise_angina":
+        return "exercise-induced angina"
+    if feature_name == "fasting_blood_sugar":
+        return "fasting glucose levels"
+    if feature_name == "sex":
+        return "biological sex"
+    if feature_name == "cholesterol_was_missing":
+        return "cholesterol data quality (originally missing)"
+    return "clinical factors"
+
+
+def _unique_themes(features: list, max_themes: int = 3,
+                   exclude: set[str] | None = None) -> list[str]:
+    """
+    Convert a list of (feature_name, shap_value) tuples into a deduplicated
+    list of clinical themes, preserving order.
+
+    Optionally accepts an exclude set: themes appearing there are skipped.
+    Used to prevent the same theme appearing in BOTH the drivers AND
+    protectors list when SHAP attributes contribution to multiple one-hot
+    columns of the same underlying clinical concept (e.g., resting_bp
+    contributes positively while bp_category_elevated contributes slightly
+    negatively — both map to "blood pressure").
+    """
+    if exclude is None:
+        exclude = set()
+    seen = set()
+    themes = []
+    for name, _ in features:
+        theme = _theme_for_feature(name)
+        if theme in exclude:
+            continue
+        if theme not in seen:
+            seen.add(theme)
+            themes.append(theme)
+        if len(themes) >= max_themes:
+            break
+    return themes
+
+
 def _list_to_text(names: list[str]) -> str:
     """Render a list as 'A', 'A and B', or 'A, B, and C'."""
     if len(names) == 1:
@@ -195,6 +272,12 @@ def _show_prediction(result: dict, feature_row, patient_inputs: dict) -> None:
         "bars push toward lower risk. Each bar shows the patient's actual "
         "input value for that feature."
     )
+    st.caption(
+        "Note: features marked '(yes)' are categories the patient was "
+        "assigned to. Features marked '(no)' are categories they were NOT "
+        "assigned to — the model also uses the absence of a category as a "
+        "signal, which is why these can appear in the chart."
+    )
 
     fig = _shap_waterfall(
         result["top_drivers"],
@@ -205,55 +288,61 @@ def _show_prediction(result: dict, feature_row, patient_inputs: dict) -> None:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Plain-English summary
+    # Plain-English summary — uses clinical themes instead of raw feature names
     with st.expander("📝 Plain-English summary", expanded=True):
 
-        driver_names = [pretty(n) for n, _ in result["top_drivers"][:3]]
-        protector_names = [pretty(n) for n, _ in result["top_protectors"][:3]]
+        driver_themes = _unique_themes(result["top_drivers"], max_themes=3)
+        # Exclude any theme already in drivers so we don't say e.g.
+        # "blood pressure" is BOTH driving up risk AND protective.
+        protector_themes = _unique_themes(
+            result["top_protectors"],
+            max_themes=3,
+            exclude=set(driver_themes),
+        )
 
         if result["risk_category"] == "High":
-            if driver_names:
+            if driver_themes:
                 st.markdown(
-                    f"The primary factors elevating this patient's risk "
-                    f"are **{_list_to_text(driver_names)}**. These features "
-                    f"contributed most strongly toward the model's prediction "
-                    f"of cardiovascular disease."
+                    f"The factors most strongly elevating this patient's "
+                    f"risk are **{_list_to_text(driver_themes)}**. These "
+                    f"contributed most to the model's prediction of "
+                    f"cardiovascular disease."
                 )
-            if protector_names:
+            if protector_themes:
                 st.markdown(
-                    f"Partially offsetting this, **{_list_to_text(protector_names)}** "
+                    f"Partially offsetting this, **{_list_to_text(protector_themes)}** "
                     f"pushed the assessment toward lower risk."
                 )
 
         elif result["risk_category"] == "Moderate":
-            if driver_names and protector_names:
+            if driver_themes and protector_themes:
                 st.markdown(
-                    f"This patient sits in the moderate-risk band. Factors "
-                    f"pushing the assessment upward include "
-                    f"**{_list_to_text(driver_names)}**, while "
-                    f"**{_list_to_text(protector_names)}** push it downward. "
-                    f"The model's overall prediction reflects the balance "
-                    f"between these influences."
+                    f"This patient sits in the moderate-risk band. The "
+                    f"factors pushing the assessment upward include "
+                    f"**{_list_to_text(driver_themes)}**, while "
+                    f"**{_list_to_text(protector_themes)}** push it "
+                    f"downward. The model's overall prediction reflects "
+                    f"the balance between these influences."
                 )
-            elif driver_names:
+            elif driver_themes:
                 st.markdown(
                     f"This patient sits in the moderate-risk band, driven "
-                    f"primarily by **{_list_to_text(driver_names)}**."
+                    f"primarily by **{_list_to_text(driver_themes)}**."
                 )
 
         else:  # Low
-            if protector_names:
+            if protector_themes:
                 st.markdown(
-                    f"This patient's profile shows **low** cardiovascular risk. "
-                    f"The strongest protective factors are "
-                    f"**{_list_to_text(protector_names)}**, which pushed the "
-                    f"model's assessment toward absence of disease."
+                    f"This patient's profile shows **low** cardiovascular "
+                    f"risk. The strongest protective factors are "
+                    f"**{_list_to_text(protector_themes)}**, which pushed "
+                    f"the model's assessment toward absence of disease."
                 )
-            if driver_names:
+            if driver_themes:
                 st.markdown(
-                    f"Modest contributions in the other direction came from "
-                    f"**{_list_to_text(driver_names)}**, but they were "
-                    f"outweighed by the protective factors above."
+                    f"Modest contributions in the other direction came "
+                    f"from **{_list_to_text(driver_themes)}**, but they "
+                    f"were outweighed by the protective factors above."
                 )
 
         st.markdown(
@@ -413,8 +502,6 @@ def render() -> None:
 
         result = predict(feature_row)
 
-        # Cache everything in session_state so the prediction survives reruns
-        # triggered by chatbot input.
         st.session_state["page1_result"] = result
         st.session_state["page1_feature_row"] = feature_row
         st.session_state["page1_patient_inputs"] = {
@@ -424,14 +511,8 @@ def render() -> None:
             "max_hr": max_hr, "exercise_angina": exercise_angina,
             "oldpeak": oldpeak, "slope": slope, "num_vessels": num_vessels,
         }
-        # Clear any previous chat when a new prediction is made
         reset_chat("page1_chat")
 
-    # -----------------------------------------------------------------------
-    # Show the prediction if one exists in session_state (covers both:
-    # — the rerun immediately after the form submit
-    # — every subsequent rerun triggered by chatbot input)
-    # -----------------------------------------------------------------------
     if "page1_result" in st.session_state:
         _show_prediction(
             st.session_state["page1_result"],

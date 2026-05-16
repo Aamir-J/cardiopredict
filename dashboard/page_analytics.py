@@ -10,10 +10,11 @@ Provides a population-level view of the training data:
   - Global SHAP feature importance (the plots from src/explain.py)
   - DataExplorer chatbot — natural-language SQL queries against the dataset
 
-The DataExplorer chatbot at the bottom lets users explore the dataset
-conversationally. Powered by Claude with tool use — the LLM generates SQL,
-runs it safely against a read-only DB connection, and returns answers
-with real numbers.
+The DataExplorer chatbot at the bottom is gated behind an opt-in button.
+This is deliberate: Streamlit's chat_input widget auto-claims page focus on
+render, which would cause the page to scroll to the bottom on every load.
+Hiding it behind a button keeps the page-top experience clean while still
+making the chatbot fully available.
 """
 
 from __future__ import annotations
@@ -261,7 +262,7 @@ def render() -> None:
     st.divider()
 
     # -----------------------------------------------------------------------
-    # Section 6: DataExplorer chatbot — natural-language data exploration
+    # Section 6: DataExplorer chatbot — opt-in to avoid focus-stealing
     # -----------------------------------------------------------------------
     st.subheader("💬 Ask DataExplorer")
     st.write(
@@ -271,14 +272,33 @@ def render() -> None:
         "Powered by Claude with safe read-only database access."
     )
 
-    col_a, col_b = st.columns([5, 1])
-    with col_b:
-        if st.button("🔄 Reset chat", key="reset_page2_chat",
-                     help="Clear the conversation"):
-            reset_sql_chat()
-            st.rerun()
+    # The chat widget is hidden behind an opt-in button. Why: Streamlit's
+    # st.chat_input claims initial page focus on render, which forces the
+    # browser to scroll the page down to it. Hiding it behind a button
+    # keeps the page-top experience clean.
+    if "page2_chat_open" not in st.session_state:
+        st.session_state["page2_chat_open"] = False
 
-    render_sql_chatbot()
+    if not st.session_state["page2_chat_open"]:
+        st.info(
+            "DataExplorer is ready when you are. Click the button below to "
+            "open the chat — this avoids the input field auto-scrolling the "
+            "page on load."
+        )
+        if st.button("💬 Open DataExplorer chat",
+                     type="primary",
+                     key="open_page2_chat"):
+            st.session_state["page2_chat_open"] = True
+            st.rerun()
+    else:
+        col_a, col_b = st.columns([5, 1])
+        with col_b:
+            if st.button("🔄 Reset chat", key="reset_page2_chat",
+                         help="Clear the conversation"):
+                reset_sql_chat()
+                st.rerun()
+
+        render_sql_chatbot()
 
     st.divider()
 
