@@ -2,8 +2,6 @@
 
 **AI-Powered System for Early Heart Disease Risk Detection in Indian Patients**
 
-An MBA capstone project at Dr. D. Y. Patil Vidyapeeth (DPU), facilitated through Qollabb / Stratix Project Advisory.
-
 CardioPredict is a clinical decision-support prototype combining:
 - A machine-learning risk model trained on real Indian-hospital data
 - SHAP-based explainability for every prediction
